@@ -34,6 +34,7 @@ mongoose.connect("mongodb://127.0.0.1:27017/userDB", { useNewUrlParser: true });
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
+  secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -56,12 +57,33 @@ app.get("/register", function (req, res) {
   res.render("register");
 });
 
-app.get("/secrets", function (req, res) {
+app.get("/secrets", async function (req, res) {
+  foundUsers = await User.find({"secret":{$ne: null}});
+
+  if (foundUsers) {
+    res.render("secrets", {usersWithSecrets: foundUsers});
+  }
+});
+
+app.get("/submit", function (req, res) {
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    res.render("submit");
   } else {
     res.redirect("/login");
   }
+})
+
+app.post("/submit", async function (req, res) {
+  const submittedSecret = req.body.secret;
+
+  await findUserById(req.user.id).then((foundUser) => {
+    if (foundUser) {
+      foundUser.secret = submittedSecret;
+      saveUser(foundUser).then(() => {
+        res.redirect("/secrets");
+      })
+    }
+  })
 });
 
 app.get("/logout", function (req, res) {
@@ -107,8 +129,12 @@ app.post("/login", function (req, res) {
   });
 });
 
-const saveNewUser = async function (newUser) {
-  return await newUser.save();
+const saveUser = async function (user) {
+  return await user.save();
+};
+
+const findUserById = async function (id) {
+  return await User.findById(id);
 };
 
 const findUserByUsername = async function (username) {
